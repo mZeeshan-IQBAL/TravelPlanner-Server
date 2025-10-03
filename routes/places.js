@@ -4,6 +4,116 @@ const { nominatim, overpass, wikipedia } = require('../utils/apiHelpers');
 
 const router = express.Router();
 
+// Fallback places data for common cities when external APIs fail
+const getFallbackPlaces = (query) => {
+  const fallbackCities = {
+    'islamabad': [{
+      provider: 'fallback',
+      providerId: 'islamabad-pk',
+      name: 'Islamabad',
+      lat: 33.6844,
+      lng: 73.0479,
+      address: 'Islamabad, Pakistan',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }],
+    'karachi': [{
+      provider: 'fallback',
+      providerId: 'karachi-pk',
+      name: 'Karachi',
+      lat: 24.8607,
+      lng: 67.0011,
+      address: 'Karachi, Pakistan',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }],
+    'lahore': [{
+      provider: 'fallback',
+      providerId: 'lahore-pk',
+      name: 'Lahore',
+      lat: 31.5204,
+      lng: 74.3587,
+      address: 'Lahore, Pakistan',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }],
+    'new york': [{
+      provider: 'fallback',
+      providerId: 'nyc-us',
+      name: 'New York City',
+      lat: 40.7128,
+      lng: -74.0060,
+      address: 'New York, NY, USA',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }],
+    'london': [{
+      provider: 'fallback',
+      providerId: 'london-uk',
+      name: 'London',
+      lat: 51.5074,
+      lng: -0.1278,
+      address: 'London, UK',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }],
+    'tokyo': [{
+      provider: 'fallback',
+      providerId: 'tokyo-jp',
+      name: 'Tokyo',
+      lat: 35.6762,
+      lng: 139.6503,
+      address: 'Tokyo, Japan',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }],
+    'paris': [{
+      provider: 'fallback',
+      providerId: 'paris-fr',
+      name: 'Paris',
+      lat: 48.8566,
+      lng: 2.3522,
+      address: 'Paris, France',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }],
+    'dubai': [{
+      provider: 'fallback',
+      providerId: 'dubai-ae',
+      name: 'Dubai',
+      lat: 25.2048,
+      lng: 55.2708,
+      address: 'Dubai, UAE',
+      type: 'city',
+      category: 'place',
+      importance: 0.9
+    }]
+  };
+
+  const queryLower = query.toLowerCase();
+  
+  // Check exact match first
+  if (fallbackCities[queryLower]) {
+    return fallbackCities[queryLower];
+  }
+  
+  // Check partial matches
+  for (const [city, data] of Object.entries(fallbackCities)) {
+    if (city.includes(queryLower) || queryLower.includes(city)) {
+      return data;
+    }
+  }
+  
+  return [];
+};
+
 // GET /api/places/search
 // q: text query
 // lat,lng (optional) for proximity search
@@ -84,9 +194,44 @@ router.get('/search', async (req, res) => {
       }
     }
 
-    return res.json({ success: true, data: results });
+    // Always try to include fallback data for better user experience
+    const fallbackData = getFallbackPlaces(q.trim());
+    
+    // If we have good fallback data, prioritize it
+    if (fallbackData.length > 0) {
+      // Check if the results from Nominatim have poor name quality (non-Latin characters)
+      const hasGoodNominatimResults = results.some(result => 
+        result.name && /^[a-zA-Z0-9\s\-\.,']+$/.test(result.name) && 
+        result.name.toLowerCase().includes(q.toLowerCase())
+      );
+      
+      if (!hasGoodNominatimResults) {
+        // Prefer fallback data, but also include Nominatim results as alternatives
+        results = [...fallbackData, ...results];
+      } else {
+        // Nominatim has good results, just add fallback as backup
+        results = [...results, ...fallbackData];
+      }
+    }
+    
+    // If still no results, this shouldn't happen with the improved logic above
+    if (results.length === 0) {
+      return res.status(404).json({ success: false, message: 'No places found for your search' });
+    }
+
+    return res.json({ success: true, data: results.slice(0, 10) }); // Limit to 10 results
   } catch (error) {
     console.error('Places search error:', error?.response?.data || error.message);
+    
+    // Try to provide fallback data even on error
+    const { q } = req.query; // Get q from request again in catch block
+    if (q && q.trim()) {
+      const fallbackData = getFallbackPlaces(q.trim());
+      if (fallbackData.length > 0) {
+        return res.json({ success: true, data: fallbackData, source: 'fallback' });
+      }
+    }
+    
     return res.status(500).json({ success: false, message: 'Error searching places' });
   }
 });

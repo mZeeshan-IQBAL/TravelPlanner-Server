@@ -11,18 +11,26 @@ router.post('/itinerary', auth, async (req, res) => {
     const { destination, durationDays = 3, budgetLevel = 'medium', interests = [] } = req.body;
     if (!destination) return res.status(400).json({ success: false, message: 'destination is required' });
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
     let plan;
 
     if (apiKey) {
-      // Use OpenAI chat completions to generate a structured plan
+      // Use OpenRouter chat completions to generate a structured plan
       const prompt = `Create a day-wise travel itinerary in JSON with keys days:[{day, items:[{title, location, startTime, endTime, notes, cost}]}] for ${destination} over ${durationDays} days for a ${budgetLevel} budget. Focus on ${interests.join(', ') || 'general highlights' }. Keep costs approximate in USD.`;
-      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o-mini',
-        messages: [ { role: 'system', content: 'You are a travel planner that outputs only JSON.' }, { role: 'user', content: prompt } ],
+      const resp = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        model: 'anthropic/claude-3.5-haiku', // Using Claude Haiku - fast and efficient
+        messages: [ 
+          { role: 'system', content: 'You are a travel planner that outputs only valid JSON. Do not include any markdown formatting or explanatory text - just the JSON object.' }, 
+          { role: 'user', content: prompt } 
+        ],
         temperature: 0.7,
+        max_tokens: 2000,
       }, {
-        headers: { Authorization: `Bearer ${apiKey}` }
+        headers: { 
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': 'http://localhost:5000', // Required by OpenRouter
+          'X-Title': 'Travel Planner App' // Optional but recommended
+        }
       });
 
       // Attempt to parse JSON from the response

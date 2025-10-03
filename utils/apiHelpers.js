@@ -39,7 +39,7 @@ class NominatimAPI {
       return response.data.map(item => ({
         provider: 'nominatim',
         providerId: item.place_id,
-        name: item.display_name?.split(',')[0] || query,
+        name: this.extractBestName(item, query),
         fullName: item.display_name,
         lat: parseFloat(item.lat),
         lng: parseFloat(item.lon),
@@ -54,6 +54,34 @@ class NominatimAPI {
       console.error('Nominatim search error:', error.message);
       throw new Error('Failed to search places with Nominatim');
     }
+  }
+
+  // Extract the best available name, preferring English
+  extractBestName(item, query) {
+    // Try to get English name first
+    if (item.namedetails) {
+      // Look for English name variants
+      if (item.namedetails['name:en']) return item.namedetails['name:en'];
+      if (item.namedetails['name:eng']) return item.namedetails['name:eng'];
+      if (item.namedetails.name) return item.namedetails.name;
+    }
+    
+    // If we have the regular name field and it looks like Latin characters
+    if (item.name && /^[a-zA-Z0-9\s\-\.,']+$/.test(item.name)) {
+      return item.name;
+    }
+    
+    // Fall back to extracting from display_name
+    if (item.display_name) {
+      const namePart = item.display_name.split(',')[0].trim();
+      // If the first part looks like Latin characters, use it
+      if (/^[a-zA-Z0-9\s\-\.,']+$/.test(namePart)) {
+        return namePart;
+      }
+    }
+    
+    // Last resort: return the original query
+    return query;
   }
 
   // Reverse geocoding

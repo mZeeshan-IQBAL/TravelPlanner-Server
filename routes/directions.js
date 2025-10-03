@@ -11,8 +11,14 @@ router.get('/route', async (req, res) => {
     if (!coords) {
       return res.status(400).json({ success: false, message: 'coords query param is required: lng,lat;lng,lat' });
     }
-    const clean = String(coords).trim();
-    const url = `https://router.project-osrm.org/route/v1/${encodeURIComponent(profile)}/${encodeURIComponent(clean)}?overview=full&geometries=geojson`;
+    // Sanitize and validate coords: allow digits, minus, dot, comma, semicolon
+    const clean = String(coords).trim().replace(/\s+/g, '');
+    const coordsFormat = /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?(?:;-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?)+$/;
+    if (!coordsFormat.test(clean)) {
+      return res.status(400).json({ success: false, message: 'Invalid coords format. Expected lng,lat;lng,lat;...' });
+    }
+    // Important: do NOT encode the coords path; OSRM expects raw semicolon/comma-separated pairs
+    const url = `https://router.project-osrm.org/route/v1/${encodeURIComponent(profile)}/${clean}?overview=full&geometries=geojson`;
     const resp = await axios.get(url, { timeout: 10000 });
 
     const route = resp.data?.routes?.[0];

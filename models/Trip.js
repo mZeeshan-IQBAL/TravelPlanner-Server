@@ -120,6 +120,5 @@ const tripSchema = new mongoose.Schema({
 // Index for better query performance
 tripSchema.index({ user: 1, createdAt: -1 });
 tripSchema.index({ _id: 1, 'expenses.createdAt': -1 });
-tripSchema.index({ 'publicShare.token': 1 });
 
 module.exports = mongoose.model('Trip', tripSchema);

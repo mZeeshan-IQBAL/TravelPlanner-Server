@@ -36,26 +36,26 @@ const PORT = process.env.PORT || 5000;
 // Security & core middleware
 app.use(helmet());
 
+// Default allowed origins for development (shared between HTTP and Socket.IO)
+const DEFAULT_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001', 
+  'http://localhost:3002',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002'
+];
+
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    // Default allowed origins for development
-    const defaultOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001', 
-      'http://localhost:3002',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-      'http://127.0.0.1:3002'
-    ];
-    
     // Use CLIENT_URL from environment or default to localhost origins
     const allowedOrigins = process.env.CLIENT_URL ? 
       process.env.CLIENT_URL.split(',').map(url => url.trim()) : 
-      defaultOrigins;
+      DEFAULT_ORIGINS;
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -88,7 +88,7 @@ const { initSocket } = require('./socket');
 // Use same CORS origins for Socket.IO as main app
 const socketCorsOrigins = process.env.CLIENT_URL ? 
   process.env.CLIENT_URL.split(',').map(url => url.trim()) : 
-  defaultOrigins;
+  DEFAULT_ORIGINS;
 
 const io = initSocket(server, {
   cors: {
