@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   username: {
@@ -23,13 +24,22 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters']
   },
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
+  avatarUrl: String,
+  googleId: String,
   searchHistory: [{
     country: String,
     searchedAt: {
       type: Date,
       default: Date.now
     }
-  }]
+  }],
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  }
 }, {
   timestamps: true
 });
@@ -66,6 +76,14 @@ userSchema.methods.addToSearchHistory = async function(country) {
   }
   
   await this.save();
+};
+
+
+userSchema.methods.generatePasswordReset = function() {
+  const token = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = token;
+  this.resetPasswordExpires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+  return token;
 };
 
 module.exports = mongoose.model('User', userSchema);

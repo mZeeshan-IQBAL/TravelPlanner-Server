@@ -48,16 +48,17 @@ router.post('/register', async (req, res) => {
 
     await user.save();
 
-    // Generate token
+    // Generate auth token
     const token = generateToken(user._id);
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: 'User registered successfully.',
       token,
       user: {
         id: user._id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        role: user.role,
       }
     });
 
@@ -109,7 +110,9 @@ router.post('/login', async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
-        searchHistory: user.searchHistory
+        avatarUrl: user.avatarUrl,
+        searchHistory: user.searchHistory,
+        role: user.role,
       }
     });
 
@@ -129,7 +132,9 @@ router.get('/me', auth, async (req, res) => {
         id: req.user._id,
         username: req.user.username,
         email: req.user.email,
-        searchHistory: req.user.searchHistory
+        avatarUrl: req.user.avatarUrl,
+        searchHistory: req.user.searchHistory,
+        role: req.user.role,
       }
     });
   } catch (error) {
@@ -159,6 +164,83 @@ router.post('/search-history', auth, async (req, res) => {
   } catch (error) {
     console.error('Search history error:', error);
     res.status(500).json({ message: 'Server error updating search history' });
+  }
+});
+
+
+// @route   POST /api/auth/request-password-reset
+// @desc    Send password reset link
+// @access  Public
+router.post('/request-password-reset', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.json({ message: 'If that account exists, a reset link has been sent' });
+    const token = user.generatePasswordReset();
+    await user.save();
+    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password?token=${token}`;
+    console.log('Reset your password at:', resetUrl);
+    res.json({ message: 'Password reset link sent (check server logs in dev)' });
+  } catch (error) {
+    console.error('Request password reset error:', error);
+    res.status(500).json({ message: 'Failed to send password reset link' });
+  }
+});
+
+// @route   POST /api/auth/reset-password
+// @desc    Reset password using token
+// @access  Public
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ message: 'Token and new password are required' });
+    const user = await User.findOne({ resetPasswordToken: token, resetPasswordExpires: { $gt: new Date() } });
+    if (!user) return res.status(400).json({ message: 'Invalid or expired token' });
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Failed to reset password' });
+  }
+});
+
+// @route   POST /api/auth/google
+// @desc    Google OAuth login (placeholder)
+// @access  Public
+router.post('/google', async (req, res) => {
+  return res.status(501).json({ message: 'Google OAuth not configured' });
+});
+
+// Bootstrap or secret-guarded self-promotion to admin
+// Usage:
+// - If no admin users exist: any authenticated user can call once to become admin.
+// - If at least one admin exists: requires PROMOTE_SECRET (body.secret or ?secret=...)
+router.post('/promote-me', auth, async (req, res) => {
+  try {
+    const hasAdmin = await User.exists({ role: 'admin' });
+
+    if (hasAdmin) {
+      const provided = req.body?.secret || req.query?.secret;
+      const expected = process.env.PROMOTE_SECRET || '';
+      if (!expected || provided !== expected) {
+        return res.status(403).json({ success: false, message: 'Promotion not allowed. Invalid or missing secret.' });
+      }
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    user.role = 'admin';
+    await user.save();
+
+    return res.json({ success: true, message: 'User promoted to admin', data: { role: user.role } });
+  } catch (error) {
+    console.error('Promote self error:', error);
+    res.status(500).json({ success: false, message: 'Failed to promote user' });
   }
 });
 

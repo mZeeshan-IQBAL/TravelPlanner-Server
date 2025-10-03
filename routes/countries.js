@@ -7,6 +7,48 @@ const router = express.Router();
 // Base URL for REST Countries API
 const REST_COUNTRIES_BASE_URL = 'https://restcountries.com/v3.1';
 
+// Helpers to format and fetch countries by name or capital
+const formatCountries = (data) => {
+  return data.map(country => ({
+    name: country.name.common,
+    officialName: country.name.official,
+    capital: country.capital ? country.capital[0] : 'N/A',
+    population: country.population,
+    region: country.region,
+    subregion: country.subregion,
+    currencies: country.currencies ? Object.values(country.currencies).map(curr => ({
+      name: curr.name,
+      symbol: curr.symbol,
+      code: Object.keys(country.currencies)[0]
+    })) : [],
+    languages: country.languages ? Object.values(country.languages) : [],
+    flag: country.flags.svg || country.flags.png,
+    coatOfArms: country.coatOfArms?.svg || country.coatOfArms?.png,
+    timezones: country.timezones,
+    coordinates: country.latlng,
+    borders: country.borders || [],
+    area: country.area,
+    maps: country.maps,
+    fifa: country.fifa,
+    continents: country.continents
+  }));
+};
+
+const fetchByNameOrCapital = async (term) => {
+  // Try by country name first
+  try {
+    const resp = await axios.get(`${REST_COUNTRIES_BASE_URL}/name/${encodeURIComponent(term)}`);
+    return formatCountries(resp.data);
+  } catch (err) {
+    // If not found by name, try by capital city
+    if (err.response?.status === 404) {
+      const capResp = await axios.get(`${REST_COUNTRIES_BASE_URL}/capital/${encodeURIComponent(term)}`);
+      return formatCountries(capResp.data);
+    }
+    throw err;
+  }
+};
+
 // @route   GET /api/countries/test
 // @desc    Quick connectivity test for REST Countries API
 // @access  Public
@@ -28,43 +70,61 @@ router.get('/test', async (req, res) => {
   }
 });
 
+// @route   GET /api/countries/public/search/:name
+// @desc    Search for countries by name (public access)
+// @access  Public
+router.get('/public/search/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+
+    if (!name || name.trim().length < 2) {
+      return res.status(400).json({ message: 'Country name or capital must be at least 2 characters' });
+    }
+
+    const countries = await fetchByNameOrCapital(name.trim());
+
+    res.json({
+      success: true,
+      count: countries.length,
+      data: countries
+    });
+
+  } catch (error) {
+    console.error('Public countries search error:', error.message);
+
+    if (error.response?.status === 404) {
+      return res.status(404).json({
+        success: false,
+        message: 'No countries found with that name or capital'
+      });
+    }
+
+    if (error.response?.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many requests. Please try again later.'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching country data'
+    });
+  }
+});
+
 // @route   GET /api/countries/search/:name
 // @desc    Search for countries by name
 // @access  Private
 router.get('/search/:name', auth, async (req, res) => {
   try {
     const { name } = req.params;
-    
+
     if (!name || name.trim().length < 2) {
-      return res.status(400).json({ message: 'Country name must be at least 2 characters' });
+      return res.status(400).json({ message: 'Country name or capital must be at least 2 characters' });
     }
 
-    const response = await axios.get(`${REST_COUNTRIES_BASE_URL}/name/${encodeURIComponent(name.trim())}`);
-    
-    // Format the response data
-    const countries = response.data.map(country => ({
-      name: country.name.common,
-      officialName: country.name.official,
-      capital: country.capital ? country.capital[0] : 'N/A',
-      population: country.population,
-      region: country.region,
-      subregion: country.subregion,
-      currencies: country.currencies ? Object.values(country.currencies).map(curr => ({
-        name: curr.name,
-        symbol: curr.symbol,
-        code: Object.keys(country.currencies)[0]
-      })) : [],
-      languages: country.languages ? Object.values(country.languages) : [],
-      flag: country.flags.svg || country.flags.png,
-      coatOfArms: country.coatOfArms?.svg || country.coatOfArms?.png,
-      timezones: country.timezones,
-      coordinates: country.latlng,
-      borders: country.borders || [],
-      area: country.area,
-      maps: country.maps,
-      fifa: country.fifa,
-      continents: country.continents
-    }));
+    const countries = await fetchByNameOrCapital(name.trim());
 
     res.json({
       success: true,
@@ -74,24 +134,24 @@ router.get('/search/:name', auth, async (req, res) => {
 
   } catch (error) {
     console.error('Countries search error:', error.message);
-    
+
     if (error.response?.status === 404) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'No countries found with that name' 
-      });
-    }
-    
-    if (error.response?.status === 429) {
-      return res.status(429).json({ 
-        success: false,
-        message: 'Too many requests. Please try again later.' 
+        message: 'No countries found with that name or capital'
       });
     }
 
-    res.status(500).json({ 
+    if (error.response?.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many requests. Please try again later.'
+      });
+    }
+
+    res.status(500).json({
       success: false,
-      message: 'Error fetching country data' 
+      message: 'Error fetching country data'
     });
   }
 });
