@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 
 // Base URL for OpenWeatherMap API
-const WEATHER_BASE_URL = 'https://api.openweathermap.org/data/2.5';
+const WEATHER_BASE_URL = process.env.OPENWEATHER_BASE_URL || 'https://api.openweathermap.org/data/2.5';
 
 // @route   GET /api/weather/test
 // @desc    Quick configuration test for OpenWeatherMap

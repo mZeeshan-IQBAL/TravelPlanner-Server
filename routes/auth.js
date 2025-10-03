@@ -209,10 +209,100 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // @route   POST /api/auth/google
-// @desc    Google OAuth login (placeholder)
+// @desc    Google OAuth login
 // @access  Public
 router.post('/google', async (req, res) => {
-  return res.status(501).json({ message: 'Google OAuth not configured' });
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ message: 'Google credential required' });
+    }
+
+    // Check if Google client ID is configured
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ 
+        message: 'Google OAuth not configured. Please set GOOGLE_CLIENT_ID environment variable.' 
+      });
+    }
+
+    const { OAuth2Client } = require('google-auth-library');
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+    // Verify the Google token
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email not provided by Google' });
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ 
+      $or: [{ email }, { googleId }] 
+    });
+
+    if (user) {
+      // Update user's Google ID if not set
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.avatarUrl = picture;
+        await user.save();
+      }
+    } else {
+      // Create new user
+      const baseUsername = email.split('@')[0];
+      let username = baseUsername;
+      
+      // Ensure username is unique
+      let counter = 1;
+      while (await User.findOne({ username })) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+      }
+      
+      user = new User({
+        username,
+        email,
+        googleId,
+        avatarUrl: picture,
+        password: Math.random().toString(36) // Random password for Google users
+      });
+      
+      await user.save();
+    }
+
+    // Generate token
+    const token = generateToken(user._id);
+
+    res.json({
+      message: 'Google authentication successful',
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        searchHistory: user.searchHistory,
+        role: user.role,
+      }
+    });
+
+  } catch (error) {
+    console.error('Google OAuth error:', error);
+    if (error.message && error.message.includes('Token used too late')) {
+      return res.status(400).json({ message: 'Google token expired. Please try again.' });
+    }
+    if (error.message && error.message.includes('Invalid token')) {
+      return res.status(400).json({ message: 'Invalid Google token. Please try again.' });
+    }
+    res.status(500).json({ message: 'Google authentication failed' });
+  }
 });
 
 // Bootstrap or secret-guarded self-promotion to admin

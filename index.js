@@ -42,7 +42,8 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = [
+    // Default allowed origins for development
+    const defaultOrigins = [
       'http://localhost:3000',
       'http://localhost:3001', 
       'http://localhost:3002',
@@ -51,9 +52,10 @@ const corsOptions = {
       'http://127.0.0.1:3002'
     ];
     
-    if (process.env.CLIENT_URL) {
-      allowedOrigins.push(...process.env.CLIENT_URL.split(','));
-    }
+    // Use CLIENT_URL from environment or default to localhost origins
+    const allowedOrigins = process.env.CLIENT_URL ? 
+      process.env.CLIENT_URL.split(',').map(url => url.trim()) : 
+      defaultOrigins;
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -83,16 +85,14 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/travel-pl
 
 // Attach Socket.IO
 const { initSocket } = require('./socket');
+// Use same CORS origins for Socket.IO as main app
+const socketCorsOrigins = process.env.CLIENT_URL ? 
+  process.env.CLIENT_URL.split(',').map(url => url.trim()) : 
+  defaultOrigins;
+
 const io = initSocket(server, {
   cors: {
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001', 
-      'http://localhost:3002',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-      'http://127.0.0.1:3002'
-    ],
+    origin: socketCorsOrigins,
     credentials: true,
     methods: ['GET', 'POST']
   }
