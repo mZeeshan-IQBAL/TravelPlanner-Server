@@ -39,3 +39,4 @@ coverage/
 
 # Others
 *.tgz
+.vercel

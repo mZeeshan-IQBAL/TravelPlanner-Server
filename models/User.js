@@ -27,6 +27,13 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpires: Date,
   avatarUrl: String,
+  avatar: {
+    publicId: String,
+    url: String,
+    thumbnailUrl: String,
+    mediumUrl: String,
+    largeUrl: String,
+  },
   googleId: String,
   searchHistory: [{
     country: String,

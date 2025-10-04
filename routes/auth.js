@@ -111,6 +111,7 @@ router.post('/login', async (req, res) => {
         username: user.username,
         email: user.email,
         avatarUrl: user.avatarUrl,
+        avatar: user.avatar,
         searchHistory: user.searchHistory,
         role: user.role,
       }
@@ -133,6 +134,7 @@ router.get('/me', auth, async (req, res) => {
         username: req.user.username,
         email: req.user.email,
         avatarUrl: req.user.avatarUrl,
+        avatar: req.user.avatar,
         searchHistory: req.user.searchHistory,
         role: req.user.role,
       }

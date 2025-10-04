@@ -129,6 +129,28 @@ app.use('/api/tools', toolsRoutes);
 app.use('/api/guides', guidesRoutes);
 app.use('/api/hotels', hotelsRoutes);
 
+// Root route - API info
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Travel Planner API',
+    version: '1.0.0',
+    status: 'running',
+    description: 'Backend API server for Travel Planner application',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth/*',
+      users: '/api/users/*',
+      countries: '/api/countries/*',
+      weather: '/api/weather/*',
+      trips: '/api/trips/*',
+      places: '/api/places/*',
+      guides: '/api/guides/*',
+      hotels: '/api/hotels/*'
+    },
+    documentation: 'Visit /api/health for health check'
+  });
+});
+
 // Health check route
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Travel Planner API is running!' });
