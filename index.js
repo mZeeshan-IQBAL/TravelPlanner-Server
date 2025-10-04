@@ -30,6 +30,8 @@ const guidesRoutes = require('./routes/guides');
 const hotelsRoutes = require('./routes/hotels');
 
 const app = express();
+// When running behind a dev proxy (CRA) or any reverse proxy, trust the first proxy
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
@@ -43,7 +45,9 @@ const DEFAULT_ORIGINS = [
   'http://localhost:3002',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
-  'http://127.0.0.1:3002'
+  'http://127.0.0.1:3002',
+  'http://localhost:5000', // allow same-origin calls without noisy logs
+  'http://127.0.0.1:5000'
 ];
 
 // CORS configuration
@@ -51,13 +55,14 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
+    const cleanOrigin = origin.replace(/\/$/, '');
     // Use CLIENT_URL from environment or default to localhost origins
     const allowedOrigins = process.env.CLIENT_URL ? 
-      process.env.CLIENT_URL.split(',').map(url => url.trim()) : 
+      process.env.CLIENT_URL.split(',').map(url => url.trim().replace(/\/$/, '')) : 
       DEFAULT_ORIGINS;
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.indexOf(cleanOrigin) !== -1) {
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
@@ -75,8 +80,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Static uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-// Rate limit API routes
-app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+// Rate limit API routes (safe behind proxy)
+app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false }));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/travel-planner')
@@ -98,6 +103,14 @@ const io = initSocket(server, {
   }
 });
 app.set('io', io);
+
+// Simple request logger in development for debugging
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(req.method, req.originalUrl);
+    next();
+  });
+}
 
 // Routes
 app.use('/api/auth', authRoutes);
