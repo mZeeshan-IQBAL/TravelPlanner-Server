@@ -8,8 +8,8 @@ const AMADEUS_ENVIRONMENT = process.env.AMADEUS_ENVIRONMENT || 'test';
 const AMADEUS_API_URL = AMADEUS_ENVIRONMENT === 'production' 
   ? 'https://api.amadeus.com' 
   : 'https://test.api.amadeus.com';
-const CLIENT_ID = process.env.AMADEUS_API_KEY || 'Hunn8S7nZIri1TnF1jle3ZfA6Fnpm5Ax';
-const CLIENT_SECRET = process.env.AMADEUS_API_SECRET || 'IzIZns4ia3CHrclR';
+const CLIENT_ID = process.env.AMADEUS_API_KEY;
+const CLIENT_SECRET = process.env.AMADEUS_API_SECRET;
 
 console.log(`🌐 Amadeus API Environment: ${AMADEUS_ENVIRONMENT.toUpperCase()}`);
 
@@ -23,6 +23,10 @@ async function getAccessToken() {
     // Check if we have a valid token
     if (accessToken && tokenExpiresAt && Date.now() < tokenExpiresAt) {
       return accessToken;
+    }
+
+    if (!CLIENT_ID || !CLIENT_SECRET) {
+      throw new Error('Amadeus API credentials missing');
     }
 
     // Get new token

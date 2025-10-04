@@ -1,30 +1,8 @@
-import OpenAI from "openai";
+/**
+ * NOTE: This file was an ad-hoc script used to test OpenRouter via the OpenAI SDK.
+ * It is not used by the server at runtime and has been disabled to avoid accidental execution.
+ * If you need to run quick OpenRouter tests, create a separate script under a /scripts folder
+ * and wire it via package.json scripts.
+ */
 
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY, // Store in .env for security
-  defaultHeaders: {
-    "HTTP-Referer": "http://localhost:3000", // Replace with your site URL
-    "X-Title": "TravelPlanner",              // Replace with your app/site name
-  },
-});
-
-async function main() {
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "openai/gpt-oss-20b:free",
-      messages: [
-        {
-          role: "user",
-          content: "What is the meaning of life?",
-        },
-      ],
-    });
-
-    console.log(completion.choices[0].message);
-  } catch (error) {
-    console.error("Error:", error);
-  }
-}
-
-main();
+module.exports = {};
